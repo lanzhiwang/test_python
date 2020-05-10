@@ -237,3 +237,7 @@ email: [visitor@xalien.org](mailto:visitor@xalien.org)
 [参考](https://www.linuxjournal.com/article/6345?page=0,0)
 
 https://blog.csdn.net/cnweike/article/details/48166121
+
+https://julien.danjou.info/high-performance-in-python-with-zero-copy-and-the-buffer-protocol/
+
+https://www.cnblogs.com/erhuabushuo/p/10314803.html
