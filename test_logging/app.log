@@ -1,0 +1,12 @@
+2020-05-10 18:51:15,354 test_2.py 15 name1        DEBUG    debug logger
+2020-05-10 18:51:15,354 test_2.py 16 name1        DEBUG    id(logger): 4437671824
+2020-05-10 18:51:15,355 test_1.py 16 name1        DEBUG    debug logger1
+2020-05-10 18:51:15,355 test_1.py 16 name1        DEBUG    debug logger1
+2020-05-10 18:51:15,355 test_1.py 17 name1        DEBUG    id(logger): 4437671824
+2020-05-10 18:51:15,355 test_1.py 17 name1        DEBUG    id(logger): 4437671824
+2020-05-10 18:51:15,355 test_1.py 29 name1        DEBUG    debug logger2
+2020-05-10 18:51:15,355 test_1.py 29 name1        DEBUG    debug logger2
+2020-05-10 18:51:15,355 test_1.py 30 name1        DEBUG    id(logger): 4437671824
+2020-05-10 18:51:15,355 test_1.py 30 name1        DEBUG    id(logger): 4437671824
+2020-05-10 18:51:15,355 test_1.py 43 name2        DEBUG    debug logger3
+2020-05-10 18:51:15,355 test_1.py 44 name2        DEBUG    id(logger): 4437778512
