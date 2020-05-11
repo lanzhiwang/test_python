@@ -220,12 +220,6 @@ Conclusion
 
 Despite some drawbacks, zero-copy sendfile is a useful feature, and I hope you have found this article informative enough to start using it in your programs. If you have a more in-depth interest in the subject, keep an eye out for my second article, titled “Zero Copy II: Kernel Perspective”, where I will dig a bit more into the kernel internals of zero copy.
 
-[参考](https://www.linuxjournal.com/article/6345?page=0,0)
-
-https://blog.csdn.net/cnweike/article/details/48166121
-
-https://julien.danjou.info/high-performance-in-python-with-zero-copy-and-the-buffer-protocol/
-
-https://www.cnblogs.com/erhuabushuo/p/10314803.html
-
-安装 APP 是如何执行 APP 中的 install.py start.py 等脚本的
+* [参考](https://www.linuxjournal.com/article/6345?page=0,0)
+* [参考](https://blog.csdn.net/cnweike/article/details/48166121)
+* [参考](https://www.cnblogs.com/erhuabushuo/p/10314803.html)
