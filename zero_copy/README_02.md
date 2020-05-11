@@ -6,14 +6,14 @@ By now almost everyone has heard of so-called zero-copy functionality under Linu
 
 ## What Is Zero-Copy?
 
-To better understand the solution to a problem, we first need to understand the problem itself. Let's look at what is involved in the simple procedure of a network server dæmon serving data stored in a file to a client over the network. Here's some sample code:  为了更好地理解问题的解决方案，我们首先需要了解问题本身。 让我们看一下网络服务器通过网络将文件中存储的数据提供给客户端的简单过程所涉及的内容。 这是一些示例代码：
+To better understand the solution to a problem, we first need to understand the problem itself. Let's look at what is involved in the simple procedure of a network server damon serving data stored in a file to a client over the network. Here's some sample code:  为了更好地理解问题的解决方案，我们首先需要了解问题本身。 让我们看一下网络服务器通过网络将文件中存储的数据提供给客户端的简单过程所涉及的内容。 这是一些示例代码：
 
 ```
 read(file, tmp_buf, len);
 write(socket, tmp_buf, len);
 ```
 
-Looks simple enough; you would think there is not much overhead with only those two system calls. In reality, this couldn't be further from the truth. Behind those two calls, the data has been copied at least four times, and almost as many user/kernel context switches have been performed. (Actually this process is much more complicated, but I wanted to keep it simple). To get a better idea of the process involved, take a look at Figure 1. The top side shows context switches, and the bottom side shows copy operations.  看起来很简单； 您会认为仅使用这两个系统调用就不会有太多开销。 实际上，这离事实还远。 在这两个调用之后，数据已被至少复制了四次，并且几乎执行了许多用户/内核上下文切换。 （实际上，此过程要复杂得多，但我想保持简单）。 为了更好地了解所涉及的过程，请看一下图1。上面显示了上下文切换，下面显示了复制操作。
+Looks simple enough; you would think there is not much overhead with only those two system calls. In reality, this couldn't be further from the truth. **Behind those two calls, the data has been copied at least four times, and almost as many user/kernel context switches have been performed.** (Actually this process is much more complicated, but I wanted to keep it simple). To get a better idea of the process involved, take a look at Figure 1. The top side shows context switches, and the bottom side shows copy operations.  看起来很简单； 您会认为仅使用这两个系统调用就不会有太多开销。 实际上，这离事实还远。 在这两个调用之后，数据已被至少复制了四次，并且几乎执行了许多用户/内核上下文切换。 （实际上，此过程要复杂得多，但我想保持简单）。 为了更好地了解所涉及的过程，请看一下图1。上面显示了上下文切换，下面显示了复制操作。
 
 ![](./images/04.jpg)
 Figure 1. Copying in Two Sample System Calls
@@ -68,7 +68,7 @@ You should get your lease before mmaping the file, and break your lease after yo
 
 ## Sendfile
 
-In kernel version 2.1, the sendfile system call was introduced to simplify the transmission of data over the network and between two local files. Introduction of sendfile not only reduces data copying, it also reduces context switches. Use it like this:
+In kernel version 2.1, the sendfile system call was introduced to simplify the transmission of data over the network and between two local files. Introduction of sendfile not only reduces data copying, it also reduces context switches. Use it like this:  在内核版本2.1中，引入了sendfile系统调用，以简化网络上以及两个本地文件之间的数据传输。 sendfile的引入不仅减少了数据复制，还减少了上下文切换。 像这样使用它：
 
 ```
 sendfile(socket, file, len);
@@ -76,19 +76,18 @@ sendfile(socket, file, len);
 
 To get a better idea of the process involved, take a look at Figure 3.
 
-![img](https://www.linuxjournal.com/files/linuxjournal.com/linuxjournal/articles/063/6345/6345f3.jpg)
-
+![](./images/06.png)
 Figure 3. Replacing Read and Write with Sendfile
 
-Step one: the sendfile system call causes the file contents to be copied into a kernel buffer by the DMA engine. Then the data is copied by the kernel into the kernel buffer associated with sockets.
+Step one: the sendfile system call causes the file contents to be copied into a kernel buffer by the DMA engine. Then the data is copied by the kernel into the kernel buffer associated with sockets.  第一步：sendfile系统调用使DMA引擎将文件内容复制到内核缓冲区中。 然后，数据被内核复制到与套接字关联的内核缓冲区中。
 
-Step two: the third copy happens as the DMA engine passes the data from the kernel socket buffers to the protocol engine.
+Step two: the third copy happens as the DMA engine passes the data from the kernel socket buffers to the protocol engine.  第二步：第三份复制发生在DMA引擎将数据从内核套接字缓冲区传递到协议引擎时。
 
-You are probably wondering what happens if another process truncates the file we are transmitting with the sendfile system call. If we don't register any signal handlers, the sendfile call simply returns with the number of bytes it transferred before it got interrupted, and the errno will be set to success.
+You are probably wondering what happens if another process truncates the file we are transmitting with the sendfile system call. If we don't register any signal handlers, the sendfile call simply returns with the number of bytes it transferred before it got interrupted, and the errno will be set to success.  您可能想知道如果另一个进程截断了我们使用sendfile系统调用传输的文件会发生什么情况。 如果我们不注册任何信号处理程序，则sendfile调用将简单返回其在中断之前传输的字节数，并且errno将被设置为成功。
 
-If we get a lease from the kernel on the file before we call sendfile, however, the behavior and the return status are exactly the same. We also get the RT_SIGNAL_LEASE signal before the sendfile call returns.
+If we get a lease from the kernel on the file before we call sendfile, however, the behavior and the return status are exactly the same. We also get the RT_SIGNAL_LEASE signal before the sendfile call returns.  但是，如果在调用sendfile之前从内核获得了对该文件的租约，则其行为和返回状态是完全相同的。 在sendfile调用返回之前，我们还获得了RT_SIGNAL_LEASE信号。
 
-So far, we have been able to avoid having the kernel make several copies, but we are still left with one copy. Can that be avoided too? Absolutely, with a little help from the hardware. To eliminate all the data duplication done by the kernel, we need a network interface that supports gather operations. This simply means that data awaiting transmission doesn't need to be in consecutive memory; it can be scattered through various memory locations. In kernel version 2.4, the socket buffer descriptor was modified to accommodate those requirements—what is known as zero copy under Linux. This approach not only reduces multiple context switches, it also eliminates data duplication done by the processor. For user-level applications nothing has changed, so the code still looks like this:
+So far, we have been able to avoid having the kernel make several copies, but we are still left with one copy. Can that be avoided too? Absolutely, with a little help from the hardware. To eliminate all the data duplication done by the kernel, we need a network interface that supports gather operations. This simply means that data awaiting transmission doesn't need to be in consecutive memory; it can be scattered through various memory locations. In kernel version 2.4, the socket buffer descriptor was modified to accommodate those requirements—what is known as zero copy under Linux. This approach not only reduces multiple context switches, it also eliminates data duplication done by the processor. For user-level applications nothing has changed, so the code still looks like this:  到目前为止，我们已经能够避免让内核创建多个副本，但是我们仍然只剩下一个副本。 也可以避免吗？ 绝对在硬件的帮助下。 为了消除内核完成的所有数据重复，我们需要一个支持收集操作的网络接口。 这只是意味着等待传输的数据不需要在连续的内存中； 它可以分散在各个存储位置。 在内核版本2.4中，对套接字缓冲区描述符进行了修改，以适应这些要求-在Linux中称为零拷贝。 这种方法不仅减少了多个上下文切换，而且还消除了处理器进行的数据重复。 对于用户级应用程序，没有任何变化，因此代码仍如下所示：
 
 ```
 sendfile(socket, file, len);
@@ -96,17 +95,16 @@ sendfile(socket, file, len);
 
 To get a better idea of the process involved, take a look at Figure 4.
 
-![img](https://www.linuxjournal.com/files/linuxjournal.com/linuxjournal/articles/063/6345/6345f4.jpg)
-
+![](./images/07.png)
 Figure 4. Hardware that supports gather can assemble data from multiple memory locations, eliminating another copy.
 
-Step one: the sendfile system call causes the file contents to be copied into a kernel buffer by the DMA engine.
+Step one: the sendfile system call causes the file contents to be copied into a kernel buffer by the DMA engine.  第一步：sendfile系统调用使DMA引擎将文件内容复制到内核缓冲区中。
 
-Step two: no data is copied into the socket buffer. Instead, only descriptors with information about the whereabouts and length of the data are appended to the socket buffer. The DMA engine passes data directly from the kernel buffer to the protocol engine, thus eliminating the remaining final copy.
+Step two: no data is copied into the socket buffer. Instead, only descriptors with information about the whereabouts and length of the data are appended to the socket buffer. The DMA engine passes data directly from the kernel buffer to the protocol engine, thus eliminating the remaining final copy.  第二步：没有数据复制到套接字缓冲区中。 而是仅将具有有关数据的行踪和长度信息的描述符附加到套接字缓冲区。 DMA引擎将数据直接从内核缓冲区传递到协议引擎，从而消除了剩余的最终副本。
 
-Because data still is actually copied from the disk to the memory and from the memory to the wire, some might argue this is not a true zero copy. This is zero copy from the operating system standpoint, though, because the data is not duplicated between kernel buffers. When using zero copy, other performance benefits can be had besides copy avoidance, such as fewer context switches, less CPU data cache pollution and no CPU checksum calculations.
+Because data still is actually copied from the disk to the memory and from the memory to the wire, some might argue this is not a true zero copy. This is zero copy from the operating system standpoint, though, because the data is not duplicated between kernel buffers. When using zero copy, other performance benefits can be had besides copy avoidance, such as fewer context switches, less CPU data cache pollution and no CPU checksum calculations.  由于实际上数据仍然是从磁盘复制到内存以及从内存复制到线路，因此有人可能会认为这不是真正的零副本。 但是，从操作系统的角度来看，这是零副本，因为在内核缓冲区之间不重复数据。 当使用零拷贝时，除了避免拷贝外，还可以享受其他性能优势，例如更少的上下文切换，更少的CPU数据缓存污染以及无需CPU校验和计算。
 
-Now that we know what zero copy is, let's put theory into practice and write some code. You can download the full source code from [www.xalien.org/articles/source/sfl-src.tgz](http://www.xalien.org/articles/source/sfl-src.tgz). To unpack the source code, type **tar -zxvf sfl-src.tgz** at the prompt. To compile the code and create the random data file data.bin, run **make**.
+Now that we know what zero copy is, let's put theory into practice and write some code. You can download the full source code from [www.xalien.org/articles/source/sfl-src.tgz](http://www.xalien.org/articles/source/sfl-src.tgz). To unpack the source code, type **tar -zxvf sfl-src.tgz** at the prompt. To compile the code and create the random data file data.bin, run **make**.  现在我们知道什么是零拷贝了，让我们将理论付诸实践并编写一些代码。 您可以从www.xalien.org/articles/source/sfl-src.tgz下载完整的源代码。 要解压缩源代码，请在提示符下键入tar -zxvf sfl-src.tgz。 要编译代码并创建随机数据文件data.bin，请运行make。
 
 Looking at the code starting with header files:
 
@@ -222,18 +220,6 @@ Conclusion
 
 Despite some drawbacks, zero-copy sendfile is a useful feature, and I hope you have found this article informative enough to start using it in your programs. If you have a more in-depth interest in the subject, keep an eye out for my second article, titled “Zero Copy II: Kernel Perspective”, where I will dig a bit more into the kernel internals of zero copy.
 
-[Further Information](https://www.linuxjournal.com/files/linuxjournal.com/linuxjournal/articles/063/6345/6345s1.html)
-
-
-
-![img](https://www.linuxjournal.com/files/linuxjournal.com/linuxjournal/articles/063/6345/6345aa.jpg)
-
-email: [visitor@xalien.org](mailto:visitor@xalien.org)
-
-**Dragan Stancevic** is a kernel and hardware bring-up engineer in his late twenties. He is a software engineer by profession but has a deep interest in applied physics and has been known to play with extremely high voltages in his free time.
-
-[No comments yet. Be the first!](https://www.linuxjournal.com/article/6345#disqus_thread)
-
 [参考](https://www.linuxjournal.com/article/6345?page=0,0)
 
 https://blog.csdn.net/cnweike/article/details/48166121
@@ -241,3 +227,5 @@ https://blog.csdn.net/cnweike/article/details/48166121
 https://julien.danjou.info/high-performance-in-python-with-zero-copy-and-the-buffer-protocol/
 
 https://www.cnblogs.com/erhuabushuo/p/10314803.html
+
+安装 APP 是如何执行 APP 中的 install.py start.py 等脚本的
